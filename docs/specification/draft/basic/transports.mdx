@@ -290,7 +290,9 @@ protocol version 2024-11-05) as follows:
 
 ## WebSocket
 
-In the **WebSocket** transport, the server operates as an independent process that provides a WebSocket endpoint for client connections. This transport enables full bidirectional communication over a persistent connection.
+This transport enables full bidirectional communication over a WebSocket connection.
+
+The server **MUST** provide an HTTP endpoint path that supports both WebSocket upgrade HTTP request. This **MAY** be the same endpoint as the Streamable HTTP transport, or a different one.
 
 ### Connection Establishment
 
@@ -321,7 +323,7 @@ This envelope approach allows the WebSocket transport to closely mimic Streamabl
 #### Envelope Fields
 
 - **`type`**: **MUST** be `"mcp"` to distinguish MCP messages from non-MCP messages
-- **`mcpSessionId`**: **REQUIRED** server-generated MCP session identifier (see MCP Session Management below)
+- **`mcpSessionId`**: Server-generated MCP session identifier (see MCP Session Management below)
 - **`payload`**: Standard MCP JSON-RPC request, response, or notification
 
 ### MCP Session Management
@@ -336,8 +338,8 @@ So, MCP session IDs are not optional for this transport.
 - Session IDs **MUST** contain only visible ASCII characters (0x21 to 0x7E)
 - Servers **MUST** maintain exactly one active WebSocket connection per MCP session ID. The most recently established connection becomes the active connection for that MCP session.
 - The server **MUST** close any previous WebSocket connection associated with that session ID with close code `1000` (Normal Closure) and reason "MCP session reconnected on another connection"
-- Close frames may be ignored and there is delay in effectualization, so the server **MUST** also ignore any messages that arrive for the MCP session on any connection but the active one
-- Server-initiated notifications **MUST** be sent over to the active connection
+- Close frames might be ignored and there is delay in effectualization, so the server **MUST** also ignore any messages that arrive for the MCP session on any connection but the active one
+- Server-initiated notifications **MUST** be sent over the active connection
 - Clients **SHOULD** keep track of unacknowledged messages and resend them if necessary after reconnection
 
 ### WebSocket Transport Lifecycle
@@ -348,13 +350,13 @@ So, MCP session IDs are not optional for this transport.
 1. Establish WebSocket connection to server
 2. Send MCP `initialize` request in envelope (without `mcpSessionId`)  
 3. Wait for `initialize` response and extract `mcpSessionId` from envelope
-4. Store `mcpSessionId` for potential reconnection scenarios
+4. Store `mcpSessionId` for reconnection
 5. Send `notifications/initialized` with `mcpSessionId` in envelope
 
 **Server Behavior:**
 1. Accept WebSocket connection
-2. Generate unique MCP session ID upon receiving `initialize` request
-3. Associate WebSocket connection with generated MCP session ID
+2. Generate unique MCP session ID
+3. Upon receiving `initialize` request associate accepted WebSocket connection with generated MCP session ID
 4. Include `mcpSessionId` in envelope when responding to `initialize` request
 5. Require `mcpSessionId` in all message envelopes except the first `initialize`
 6. Close the WebSocket connection with close code `1008` (Policy Violation) and reason "Missing session ID" for requests without `mcpSessionId` (other than `initialize`)
@@ -421,6 +423,7 @@ When implementing WebSocket transport:
 ```json
 {
   "type": "mcp",
+  // `mcpSessionId` is not included in the first request
   "payload": {
     "jsonrpc": "2.0",
     "id": "1",
