@@ -322,7 +322,7 @@ Due to browser WebSocket API limitations that prevent setting headers during the
    const ws = new WebSocket(`wss://mcp.example.com/mcp?access_token=${encodeURIComponent(token)}`);
    ```
 
-4. **Use WebSocket Subprotocol** (Alternative, simplest, limited token length, most like HTTP Bearer header):
+4. **Use WebSocket Subprotocol** (Alternative, simplest, limited token length, most like HTTP Authorization: Bearer header):
    ```javascript
    const ws = new WebSocket('wss://mcp.example.com/mcp', [`bearer.${token}`]);
    ```
@@ -345,7 +345,7 @@ Due to browser WebSocket API limitations that prevent setting headers during the
 - **Use Subprotocols** when:
   - Token is short (typically less than 100 characters)
   - Simple protocol negotiation is desired
-  - Server is adapted from HTTP Bearer token implementation
+  - Server is adapted from HTTP Authorization: Bearer token implementation
 
 **Implementation Requirements:**
 
@@ -355,7 +355,7 @@ Due to browser WebSocket API limitations that prevent setting headers during the
 - Client **MUST** support at least the URL query parameter method
 - Server **SHOULD** support multiple methods for client flexibility
 - Server implementing server-set cookies **MUST** provide an HTTPS endpoint for cookie setting
-- Non-browser clients **MAY** transmit access tokens in an HTTP Bearer header (not shown above) during WebSocket upgrade
+- Non-browser clients **MAY** transmit access tokens in an HTTP Authorization: Bearer header (not shown above) during WebSocket upgrade
 - Client **MAY** progress through multiple methods to find the best available option
 
 #### Token Handling
