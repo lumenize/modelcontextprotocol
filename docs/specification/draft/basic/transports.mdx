@@ -416,6 +416,8 @@ When implementing WebSocket transport:
 2. When running locally, servers **SHOULD** bind only to localhost (127.0.0.1) rather than all network interfaces (0.0.0.0)
 3. Servers **SHOULD** implement proper authentication for all connections
 
+Refer to [Authorization](/specification/draft/basic/authorization) for guidance on how to implement authorization for HTTP and WebSocket transports. WebSocket transport supports multiple token transmission methods including cookies, URL query parameters, and subprotocols but deviates from the HTTP transport's use of headers due to a limitation in the WebSocket API in browsers.
+
 ### Example Messages
 
 **Client Initialize Request:**
