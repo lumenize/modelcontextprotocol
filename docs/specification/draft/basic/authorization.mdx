@@ -322,9 +322,9 @@ Due to browser WebSocket API limitations that prevent setting headers during the
    const ws = new WebSocket(`wss://mcp.example.com/mcp?access_token=${encodeURIComponent(token)}`);
    ```
 
-4. **Use WebSocket Subprotocol** (Alternative, simplest, limited token length, most like HTTP Authorization: Bearer header):
+4. **Use WebSocket Subprotocol** (Alternative, simplest, possibly limited token length, most like HTTP Authorization: Bearer header):
    ```javascript
-   const ws = new WebSocket('wss://mcp.example.com/mcp', [`bearer.${token}`]);
+   const ws = new WebSocket('wss://mcp.example.com/mcp', [`authorization-bearer.${token}`]);
    ```
 
 **Token Transmission Decision Criteria:**
@@ -343,7 +343,8 @@ Due to browser WebSocket API limitations that prevent setting headers during the
   - Cookie support is unavailable
 
 - **Use Subprotocols** when:
-  - Token is short (typically less than 100 characters)
+  - You are comfortable with overloading the WebSocket subprotocol for authorization. Note: Socket.io and some GraphQL implementations use this approach.
+  - When you are certain that the WebSocket implementations you are using on both the server and client support long subprotocol strings. They are just HTTP headers over the wire so that's not the limitation but subprotocol strings are generally short so they may be limited in some WebSocket implementations.
   - Simple protocol negotiation is desired
   - Server is adapted from HTTP Authorization: Bearer token implementation
 
