@@ -317,12 +317,7 @@ Due to browser WebSocket API limitations that prevent setting headers during the
    - **SHOULD** include `SameSite=Strict` flag for maximum CSRF protection
    - **Security Note**: The `HttpOnly` flag cannot be set due to a limitation of the `document.cookie` API, which means it will be accessible to JavaScript, increasing XSS risk
 
-3. **Use URL Query Parameter** (Alternative **REQUIRED**, most compatible, moderate security risk):
-   ```javascript
-   const ws = new WebSocket(`wss://mcp.example.com/mcp?access_token=${encodeURIComponent(token)}`);
-   ```
-
-4. **Use WebSocket Subprotocol** (Alternative, simplest, possibly limited token length, most like HTTP Authorization: Bearer header):
+3. **Use WebSocket Subprotocol** (Alternative, simplest, possibly limited token length, most like HTTP Authorization: Bearer header):
    ```javascript
    const ws = new WebSocket('wss://mcp.example.com/mcp', [`authorization-bearer.${token}`]);
    ```
@@ -336,11 +331,7 @@ Due to browser WebSocket API limitations that prevent setting headers during the
 - **Use Client-Set Cookies** when:
   - Server cannot implement cookie-exchange endpoint and/or session management
   - XSS risk is mitigated through other security measures (CSP, etc.)
-
-- **Use Query Parameters** when:
-  - Token is short enough for URL inclusion
-  - Simple implementation and debugging is preferred
-  - Cookie support is unavailable
+  - You are comfortable with the overhead of potentially large cookies in every request
 
 - **Use Subprotocols** when:
   - You are comfortable with overloading the WebSocket subprotocol for authorization. Note: Socket.io and some GraphQL implementations use this approach.
@@ -352,11 +343,9 @@ Due to browser WebSocket API limitations that prevent setting headers during the
 
 - Authorization **MUST** be validated during the initial WebSocket upgrade request before accepting the WebSocket connection
 - Upgrade requests with invalid authorization **MUST** be rejected with HTTP 401 Unauthorized.
-- Access tokens **MUST NOT** be transmitted in WebSocket message frames after connection establishment
-- Client **MUST** support at least the URL query parameter method
+- Server **MUST** support at least the WebSocket subprotocol method
 - Server **SHOULD** support multiple methods for client flexibility
 - Server implementing server-set cookies **MUST** provide an HTTPS endpoint for cookie setting
-- Non-browser clients **MAY** transmit access tokens in an HTTP Authorization: Bearer header (not shown above) during WebSocket upgrade
 - Client **MAY** progress through multiple methods to find the best available option
 
 #### Token Handling
