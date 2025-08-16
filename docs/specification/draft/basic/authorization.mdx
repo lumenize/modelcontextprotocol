@@ -317,9 +317,9 @@ Due to browser WebSocket API limitations that prevent setting headers during the
    - **SHOULD** include `SameSite=Strict` flag for maximum CSRF protection
    - **Security Note**: The `HttpOnly` flag cannot be set due to a limitation of the `document.cookie` API, which means it will be accessible to JavaScript, increasing XSS risk
 
-3. **Use WebSocket Subprotocol** (Alternative, simplest, possibly limited token length, most like HTTP Authorization: Bearer header):
+3. **Use WebSocket Subprotocol** (Alternative, simplest, possibly limited token length, most like HTTP `Authorization: Bearer` header):
    ```javascript
-   const ws = new WebSocket('wss://mcp.example.com/mcp', [`authorization-bearer.${token}`]);
+   const ws = new WebSocket('wss://mcp.example.com/mcp', ['mcp', `mcp.authorization-bearer.${token}`]);
    ```
 
 **Token Transmission Decision Criteria:**
