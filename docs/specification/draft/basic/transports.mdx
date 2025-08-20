@@ -298,42 +298,18 @@ The server **MUST** provide an HTTP endpoint path that supports WebSocket upgrad
 
 All messages **MUST** be sent as UTF-8 encoded text frames. Binary frames are not supported and **MUST** result in connection termination with close code `1003` (Unsupported Data).
 
-### Transport Envelope
+### MCP Session For WebSocket Transport
 
-All WebSocket messages in both directions **MUST** be wrapped in a transport envelope to enable MCP session management functionality without adding non-standard content to MCP message payloads.
+[NOTE: This transport now depends upon SEP-1364 which elevates MCP sessions in the data layer utilizing a `sessionId` field in the JSON-RPC package]
 
-This envelope approach allows the WebSocket transport to closely mimic Streamable HTTP transport semantics without requiring non-standard extensions to MCP protocol messages. The Streamable HTTP transport uses headers for equivalent functionality but these are not available in WebSocket connections.
+In Streamable HTTP transport, session IDs are primarily used for update subscription management when using the streaming/SSE channel. It is optional for stateless HTTP use since the "session" only lasts for duration of a single request/response cycle. However, the motivation for this WebSocket transport is to enable bi-directional usage. So, servers and clients using this WebSocket transport **MUST** provide session support and must include the `sessionId` field in all messages except the first `initialize` request as specified in SEP-1364 alternative 2 [TODO: adjust wording and link to the correct place when SEP-1364 is finalized].
 
-#### Envelope Format
-
-```json
-{
-  "type": "mcp",  // Routes to MCP handlers while other message types route elsewhere
-  "mcpSessionId": "<uuid>",  // Not allowed on initialize message. Required for all others
-  "payload": {
-    // Standard MCP JSON-RPC message
-  }
-}
-```
-
-#### Envelope Fields
-
-- **`type`**: **MUST** be `"mcp"` to distinguish MCP messages from non-MCP messages
-- **`mcpSessionId`**: Server-generated MCP session identifier (see MCP Session Management below)
-- **`payload`**: Standard MCP JSON-RPC request, response, or notification
-
-### MCP Session Management
-
-In Streamable HTTP transport, session IDs are primarily used for update subscription management when using the streaming/SSE channel. It is optional for stateless HTTP use since the "session" only lasts for duration of a single request/response cycle. However, the motivation for this WebSocket transport is to enable bi-directional usage. 
-
-So, MCP session IDs are not optional for this transport.
-
-#### MCP Session ID Requirements
+#### MCP `sessionId` Requirements
 
 - Session IDs **SHOULD** be globally unique and cryptographically secure (e.g., a securely generated UUID, a JWT, or a cryptographic hash)
 - Session IDs **MUST** contain only visible ASCII characters (0x21 to 0x7E)
-- Servers **MUST** maintain exactly one active WebSocket connection per MCP session ID. The most recently established connection becomes the active connection for that MCP session.
-- The server **MUST** close any previous WebSocket connection associated with that session ID with close code `1000` (Normal Closure) and reason "MCP session reconnected on another connection"
+- Servers **MUST** maintain exactly one active WebSocket connection per MCP `sessionId`. The most recently established connection becomes the active connection for that MCP session.
+- Upon reconnection, the client calls initialize with a `sessionId` and the server **MUST** close any still open WebSocket connection associated with that session ID with close code `1000` (Normal Closure) and reason "MCP session reconnected on another connection"
 - Close frames might be ignored and there is delay in effectualization, so the server **MUST** also ignore any messages that arrive for the MCP session on any connection but the active one
 - Server-initiated notifications **MUST** be sent over the active connection
 - Clients **SHOULD** keep track of unacknowledged messages and resend them if necessary after reconnection
@@ -343,48 +319,49 @@ So, MCP session IDs are not optional for this transport.
 #### Initial Connection and Session Establishment
 
 **Client Behavior:**
-1. Establish WebSocket connection to server
-2. Send MCP `initialize` request in envelope (without `mcpSessionId`)  
-3. Wait for `initialize` response and extract `mcpSessionId` from envelope
-4. Store `mcpSessionId` for reconnection
-5. Send `notifications/initialized` with `mcpSessionId` in envelope
+- Establish WebSocket connection to server
+- Send MCP `initialize` without `sessionId`
+- Wait for `initialize` response and extract `sessionId`
+- Store `sessionId` for reconnection
+- Send `notifications/initialized` with `sessionId` [TODO: SEP-1364 envisions making this optional. Adjust once finalized]
 
 **Server Behavior:**
-1. Accept WebSocket connection
-2. Generate unique MCP session ID
-3. Upon receiving `initialize` request associate accepted WebSocket connection with generated MCP session ID
-4. Include `mcpSessionId` in envelope when responding to `initialize` request
-5. Require `mcpSessionId` in all message envelopes except the first `initialize`
-6. Close the WebSocket connection with close code `1008` (Policy Violation) and reason "Missing session ID" for requests without `mcpSessionId` (other than `initialize`)
+- Accept WebSocket connection
+- Generate and include `sessionId` when responding to `initialize` request
 
 #### Normal Operation
 
 During normal operation:
-- Client **MUST** include the `mcpSessionId` in all message envelopes
+- Client **MUST** include the `sessionId` in all messages except the first `initialize`
+- Server **MUST** close the WebSocket connection with close code `1008` (Policy Violation) and reason "Missing sessionId" for requests without `sessionId` (other than `initialize`)
 - Server maintains session state and processes requests normally
 - Server may send notifications to the client at any time
 - Both client and server should handle JSON-RPC requests and responses according to MCP specification
 
 #### Disconnection Handling
 
-WebSocket connection interruption **MAY** occur at any time (e.g., due to network conditions). Therefore:
-- WebSocket connection interruption **SHOULD NOT** be interpreted as the client cancelling its request
+WebSocket connection interruption might occur at any time (e.g., due to network conditions). Therefore:
+- WebSocket connection interruption **MUST NOT** be interpreted as the client cancelling its request
 - To cancel, the client **SHOULD** explicitly send an MCP `CancelledNotification`
-- Server **SHOULD** preserve session state for a reasonable timeout period to allow reconnection
+- Similarly, disconnection **MUST NOT** be interpreted as terminating the MCP session
+- Server **MUST** preserve session state for a reasonable timeout period to allow reconnection
 
 #### Reconnection and Session Recovery
 
 Upon reconnection:
-- Client **MUST** include the `mcpSessionId` from the previous session in the first message envelope sent after reconnection
-- Server **MUST** recognize the existing session ID and preserve associated state
-- Server **MUST** close any previous WebSocket connection associated with the same MCP session ID with close code `1000` (Normal Closure) and reason "MCP session reconnected on another connection"
-- Client **SHOULD NOT** resend the `initialize` request for reconnections with existing MCP session IDs
+- Client **MUST** include the `sessionId` from the previous session in an `initialize` call after reconnection
+- Server **MUST** recognize the existing `sessionId` and associate this new connection with previously established session state
+- Server **MUST** close any previous WebSocket connection associated with the same MCP `sessionId` with close code `1000` (Normal Closure) and reason "MCP session reconnected on another connection"
 - Normal operation can resume immediately after MCP session recognition
 
 #### Session Termination
 
-1. The server **MAY** terminate the session at any time, after which it **SHOULD** close the WebSocket connection with appropriate close code and reason message
-2. Servers **MAY** implement session timeout policies for cleaning up MCP session resources
+- The server **MAY** terminate the session at any time by sending `notifications/terminate`, after which it **MUST** close the WebSocket connection with appropriate close code and reason message [TODO: I don't see this in SEP-1364, but it should be added]
+- Servers **MAY** implement session timeout policies for cleaning up MCP session resources
+- Clients **MAY** terminate session at any time by sending a `terminate` method call
+- Upon receipt of the `terminate` method, server **MUST** send a `TerminateResult` and then immediately close the associated WebSocket connection with close code `1000` (Normal Closure) and reason "MCP session terminated" [TODO: `terminate` method is added in SEP-1364 alternative 2. Adjust wording and link to the correct place when SEP-1364 is finalized]
+- Upon session termination, server **SHOULD** cleanup session state
+
 
 ### Error Handling
 
@@ -396,7 +373,7 @@ Servers **MUST** return appropriate HTTP status codes during WebSocket upgrade f
 
 #### WebSocket Protocol Errors
 
-Note: The only way to communicate errors at this level is to terminate with a close code and an optional reason. These errors **MUST NOT** result in the termination of the MCP Session. After such an error, the client is free to reconnect using an active MCP session ID to resume normal operation.
+Note: The only way to communicate errors at this level is to terminate with a close code and an optional reason. These errors **MUST NOT** result in the termination of the MCP Session. After such an error, the client is free to reconnect using an active MCP `sessionId` to resume normal operation.
 
 - Invalid UTF-8 encoding **MUST** result in connection termination with close code `1007` (Invalid frame payload data)
 - Malformed JSON messages **MUST** result in connection termination with close code `1003` (Unsupported Data)
@@ -405,31 +382,28 @@ Note: The only way to communicate errors at this level is to terminate with a cl
 
 ### Security
 
-**Warning: MCP session IDs are not a security mechanism**. They do not provide authentication or authorization. This specification defines MCP session management for connection persistence and reconnection, which is orthogonal to user authentication and authorization.
+**Warning: MCP `sessionId` is not a security mechanism**. It does not provide authentication or authorization. This specification defines MCP session management for connection persistence and reconnection, which is orthogonal to user authentication and authorization.
 
 When implementing WebSocket transport:
 1. Servers **MUST** validate the `Origin` header on all incoming WebSocket upgrade requests to prevent Cross-Site WebSocket Hijacking and DNS rebinding attacks
 2. When running locally, servers **SHOULD** bind only to localhost (127.0.0.1) rather than all network interfaces (0.0.0.0)
 3. Servers **SHOULD** implement proper authentication for all connections
 
-Refer to [Authorization](/specification/draft/basic/authorization) for guidance on how to implement authorization for HTTP and WebSocket transports. WebSocket transport supports multiple token transmission methods including cookies, URL query parameters, and subprotocols but deviates from the HTTP transport's use of headers due to a limitation in the WebSocket API in browsers.
+Refer to [Authorization](/specification/draft/basic/authorization) for guidance on how to implement authorization for HTTP and WebSocket transports. WebSocket transport smuggles in the auth token in the list of subprotocols provided by the client rather than via headers due to the inaccessibility of headers in the browser WebSocket API.
 
 ### Example Messages
 
-**Client Initialize Request:**
+**Original Client Initialize Request:**
 ```json
 {
-  "type": "mcp",
-  // `mcpSessionId` is not included in the first request
-  "payload": {
-    "jsonrpc": "2.0",
-    "id": "1",
-    "method": "initialize",
-    "params": {
-      "protocolVersion": "DRAFT-2025-v3",
-      "capabilities": {...},
-      "clientInfo": {...}
-    }
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "initialize",
+  // `sessionId` is not included in the first request
+  "params": {
+    "protocolVersion": "DRAFT-2025-v3",
+    "capabilities": {...},
+    "clientInfo": {...}
   }
 }
 ```
@@ -437,28 +411,37 @@ Refer to [Authorization](/specification/draft/basic/authorization) for guidance 
 **Server Initialize Response:**
 ```json
 {
-  "type": "mcp", 
-  "mcpSessionId": "550e8400-e29b-41d4-a716-446655440000",
-  "payload": {
-    "jsonrpc": "2.0",
-    "id": "1",
-    "result": {
-      "protocolVersion": "DRAFT-2025-v3",
-      "capabilities": {...},
-      "serverInfo": {...}
-    }
+  "jsonrpc": "2.0",
+  "id": "1",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "result": {
+    "protocolVersion": "DRAFT-2025-v3",
+    "capabilities": {...},
+    "serverInfo": {...}
   }
 }
 ```
 
-**Subsequent Client Message:**
+**Subsequent Client Message [TODO: This is optional in SEP-1364 if protocolVersions match. Adjust accordingly once SEP-1364 is finalized]:**
 ```json
 {
-  "type": "mcp",
-  "mcpSessionId": "550e8400-e29b-41d4-a716-446655440000", 
-  "payload": {
-    "jsonrpc": "2.0",
-    "method": "notifications/initialized"
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Reconnect Client Initialize Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "initialize",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "params": {
+    "protocolVersion": "DRAFT-2025-v3",
+    "capabilities": {...},
+    "clientInfo": {...}
   }
 }
 ```
