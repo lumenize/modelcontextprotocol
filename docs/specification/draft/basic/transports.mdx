@@ -362,6 +362,15 @@ Upon reconnection:
 - Upon receipt of the `terminate` method, server **MUST** send a `TerminateResult` and then immediately close the associated WebSocket connection with close code `1000` (Normal Closure) and reason "MCP session terminated" [TODO: `terminate` method is added in SEP-1364 alternative 2. Adjust wording and link to the correct place when SEP-1364 is finalized]
 - Upon session termination, server **SHOULD** cleanup session state
 
+#### Connection Maintenance Via Ping/Pong
+
+There are two different ping/pong mechanisms in robust WebSockets implementations.
+
+The one in the WebSockets spec is initiated by the server (0x09 = ping) and responded to by the client (0x10 = pong). However, many intermediaries (particularly mobile and corporate ones) will close the connection relatively quickly (sometimes as quickly as 30 seconds) if that's all there is.
+
+So, best practice is to have a ping initiated by the client and responded to as a pong from the server. 
+
+So, WebSocket transport servers and clients **SHOULD** utilize the [MCP Ping utility](https://modelcontextprotocol.io/specification/draft/basic/utilities/ping) to serve the client-initiated purpose. [TODO: Update the link to the appropriate location in the final spec]
 
 ### Error Handling
 
