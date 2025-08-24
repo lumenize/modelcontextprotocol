@@ -324,6 +324,8 @@ A key motivation for this WebSocket transport is to enable bi-directional usage 
    - clients **MAY** create additional MCP sessions on the same connection by calling `initialize` without a `params.mcpSessionId`
 6. Subscriptions (e.g. `resources/subscribe`, "list_changed", etc.) are associated with a
    particular session so server-initiated notifications **MUST** only be sent over the active connection for that session.
+7. Clients **MAY** renegotiate version and capabilities for a given session at any time
+   by sending a new `initialize` message with the desired parameters and including `params.mcpSessionId`.
 
 ### WebSocket Transport Lifecycle
 
@@ -359,11 +361,13 @@ WebSocket connection interruption might occur at any time (e.g., due to network 
 #### Reconnection and Session Recovery
 
 Upon reconnection:
-- Client **MUST NOT** send an `initialize` message when reconnecting over a different WebSocket connection to an existing session
+- Client **MAY** include one `mcp.session-id.${mcpSessionId}` value in the WebSocket subprotocols list via the `Sec-WebSocket-Protocol` header in the WebSocket upgrade request to help with loadbalancer affinity
 - Client **MUST** include the `mcpSessionId` from the previous session in any message after reconnection
-- Upon receipt of the first message for an existing session over a different connection, the server **MUST** associate this new connection with previously established session state
+- Client **MAY** send an `initialize` message including a `params.mcpSessionId` after reconnecting over a different WebSocket connection to an existing session
+  - Server **MUST** associate this new connection with that session and update any renegotiated version or capabilities
+- Regardless, receipt of the first message for an existing session over a different connection, the server **MUST** associate this new connection with previously established session state
 - Server **MUST** disassociate any previous connection associated with the same `mcpSessionId` and ignore any messages that arrive for the MCP session on any connection but the active one
-- Clients **SHOULD** keep track of unacknowledged messages and resend them if necessary after reconnection.
+- Clients **SHOULD** keep track of unacknowledged messages and resend them if necessary after reconnection
 - Normal operation can resume immediately after MCP session recognition
 
 #### Intentional Connection Close Handling
