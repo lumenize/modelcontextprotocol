@@ -409,7 +409,7 @@ When implementing WebSocket transport:
 2. When running locally, servers **SHOULD** bind only to localhost (127.0.0.1) rather than all network interfaces (0.0.0.0)
 3. Servers **SHOULD** implement proper authentication for all connections
 
-Refer to [Authorization](/specification/draft/basic/authorization) for guidance on how to implement authorization for HTTP and WebSocket transports. WebSocket transport smuggles in the auth token in the list of subprotocols provided by the client rather than via headers due to the inaccessibility of headers in the browser WebSocket API.
+Refer to [Authorization](/specification/draft/basic/authorization) for guidance on how to implement authorization for HTTP and WebSocket transports with the noted difference that the WebSocket transport smuggles in the auth token within the list of subprotocols provided by the client (which ends up in "Sec-WebSocket-Protocol" header) rather than by directly setting the "Authorization" header due to the inaccessibility of headers in the browser WebSocket API.
 
 ## Custom Transports
 
