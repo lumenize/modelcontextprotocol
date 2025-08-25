@@ -290,7 +290,7 @@ protocol version 2024-11-05) as follows:
 
 ## WebSocket
 
-This transport provides long-lived bidirectional communication over a WebSocket connection which provides better support server-initiated notifications like `resources/subscribe` and `list_changed` enabling real-time usage scenarios.
+This section defines bidirectional transport of MCP over a WebSocket connection which provides better support for maintaining long-lived connections particularly in cloud environments and through intermediaries. Long-lived connections are necessary for server-initiated notifications like `notifications/resources/updated` and `notifications/*/list_changed` which enable real-time use cases.
 
 The server **MUST** provide an HTTP endpoint path that supports WebSocket upgrade HTTP request. This **SHOULD** be the same endpoint as the Streamable HTTP transport.
 
@@ -305,8 +305,8 @@ server, beginning with the [initialization phase](/specification/draft/basic/lif
 
 A key motivation for this WebSocket transport is to enable bi-directional usage including server-initiated notifications, which is unworkable without session state that survives connection disruptions. Therefore, servers and clients using this WebSocket transport **MUST** provide MCP session support.
 
-1. A server using the WebSocket transport **MUST** assign an MCP session ID at
-   initialization time, by including a `result.mcpSessionId` field in the JSON-RPC response.
+1. A server using the WebSocket transport **MUST** assign an MCP session ID in response 
+   to an `initialize` call, by including a `result.mcpSessionId` field in the JSON-RPC response.
    - The session ID **SHOULD** be globally unique and cryptographically secure (e.g., a
      securely generated UUID, a JWT, or a cryptographic hash).
    - The session ID **MUST** only contain visible ASCII characters (ranging from 0x21 to
@@ -361,12 +361,16 @@ WebSocket connection interruption might occur at any time (e.g., due to network 
 #### Reconnection and Session Recovery
 
 To reconnect:
-- Client **MAY** include one `mcp.session-id.${mcpSessionId}` value in the WebSocket subprotocols list via the `Sec-WebSocket-Protocol` header in the WebSocket upgrade request to help with loadbalancer affinity
+- Client **MAY** include one `mcp.session-id.${mcpSessionId}` value in the WebSocket subprotocols list via the `Sec-WebSocket-Protocol` header in the WebSocket upgrade request to help with intermediary affinity
+- Client **MUST** include `mcp.auth.${token}` in the WebSocket subprotocols list
+- Server **MUST** validate auth before proceeding. Auth is associated with the connection, not a particular session
 - Client **MUST** include the `mcpSessionId` from the previous session in any message after reconnection
 - Client **MAY** send an `initialize` message including a `params.mcpSessionId` after reconnecting over a different WebSocket connection to an existing session
   - Server **MUST** associate this new connection with that session and update any renegotiated version or capabilities
-- Regardless, receipt of the first message for an existing session over a different connection, the server **MUST** associate this new connection with previously established session state making this the only active connection for the session
+- Regardless, upon receipt of the first message for an existing session over a different connection, the server **MUST** associate this new connection with previously established session state making this the only active connection for the session
 - Server **MUST** disassociate any previous connection associated with the same `mcpSessionId` and ignore any messages that arrive for the MCP session on any connection but the active one
+- Server **SHOULD** keep track of recently disassociated connection-session pairs to prevent thrashing of a session between two connections
+- If no other sessions are active on the recently disassociated connection, the server **SHOULD** close that connection with a `1000` "Normal Closure" status code
 - Clients and servers **SHOULD** keep track of unacknowledged requests and resend them if necessary after reconnection
 - Normal operation can resume immediately after MCP session recognition
 
@@ -385,10 +389,9 @@ Servers **MUST** return appropriate HTTP status codes during WebSocket upgrade f
 
 #### WebSocket Protocol Errors
 
-The only way to communicate errors at the WebSocket protocol level is to terminate the connection with a close code and an optional reason. These errors **MUST NOT** result in the termination of the MCP session. After such an error, the client is free to reconnect using an active `mcpSessionId` to resume normal operation. These include:
+The only way to communicate errors at the WebSocket protocol level is to terminate the connection with a close code and an optional reason. These include:
 
 - `1003` "Unsupported Data" 
-
 
 #### JSON-RPC Errors
 
