@@ -281,7 +281,7 @@ Due to browser WebSocket API limitations that prevent setting headers during the
 const ws = new WebSocket('wss://mcp.example.com/mcp', ['mcp', `mcp.auth.${token}`]);
 ```
 
-- Authorization **MUST** be validated during the initial WebSocket upgrade request before accepting the WebSocket connection
+- Authorization **MUST** be validated during the initial WebSocket upgrade request before accepting the WebSocket connection.
 - Upgrade requests with invalid authorization **MUST** be rejected with HTTP 401 Unauthorized.
 - Server **MUST** treat the `mcp.auth.${token}` the same way it would an `Authorization: Bearer ${token}` header in the Streamable HTTP protocol and validate it accordingly.
 - Server **MUST** respond with the `mcp` as the chosen subprotocol, not `mcp.auth.${token}`.
